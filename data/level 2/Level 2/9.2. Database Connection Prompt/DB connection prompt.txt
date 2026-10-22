@@ -1,0 +1,68 @@
+PHASE 2 — CONNECT THIS PORTAL TO SUPABASE (read-only, JSON-driven)
+
+CONTEXT
+This is a Phase 1 UI-only React + Vite + TypeScript + Tailwind + shadcn/ui SPA. All data currently comes from a hardcoded seed file (src/data/seedCompanies.ts) consumed via pure normalizers in src/lib/companyData.ts. There is NO Supabase yet, NO auth, and the app is fully public. Do NOT add login/auth.
+
+GOAL
+Swap the data source from the seed file to a Supabase Postgres database WITHOUT changing the UI, normalizers' output shapes, or component logic. The normalizers already accept raw short_json / full_json shapes — pipe Supabase rows into them untouched.
+
+CRITICAL DATA RULE — DO NOT JOIN 90+ TABLES
+The database has 90+ normalized tables, but I do NOT want joins. Read everything from ONE table only: public.company_json
+  - company_json.company_id  (int)
+  - company_json.short_json  (jsonb)  → used for company CARDS / list
+  - company_json.full_json   (jsonb)  → used for the full company detail / 22 intelligence sections
+The short_json and full_json shapes are IDENTICAL to the seed file's short_json / full_json. So:
+  - Company cards / listing  → SELECT company_id, short_json FROM company_json
+  - Single company detail    → SELECT company_id, short_json, full_json FROM company_json WHERE company_id = :id
+Do NOT query companies, company_business, company_culture, or any other table. ONLY company_json.
+
+SKILLS DATA
+Skill data also comes from tables. Read skills using these tables (these are small, simple selects — fine to use):
+  - public.company_skill_levels  (company_id, skill_set_id, required_level, required_proficiency_level_id)
+  - public.skill_set_master      (skill_set_id, skill_set_name, short_name)
+  - public.proficiency_levels    (proficiency_level_id, proficiency_name, proficiency_code)
+  - public.skill_set_topics      (skill_set_id, level_number, topics)
+Join these four ONLY to build the skill cards + 10-level roadmaps that previously came from seedCompanies skill_levels + skillTopics.ts. Map required_proficiency_level_id → proficiency_levels for the proficiency name. Keep the same DashboardSkill / roadmap shapes the existing normalizers and SkillIntelligence page expect.
+
+WHAT TO BUILD
+1. Install dependency: @supabase/supabase-js (add to package.json, run install).
+2. Create a Supabase client at src/lib/supabaseClient.ts reading from import.meta.env:
+     - VITE_SUPABASE_URL
+     - VITE_SUPABASE_ANON_KEY
+   Throw a clear console error if either is missing.
+3. Create a .env file at the project root with EMPTY placeholder values and matching .env.example:
+     VITE_SUPABASE_URL=
+     VITE_SUPABASE_ANON_KEY=
+   Add .env to .gitignore (keep .env.example committed). I will paste my key into .env manually — that must be the ONLY manual step.
+4. Create a data-access layer src/lib/companyApi.ts with React Query hooks:
+     - useCompanies()        → SELECT company_id, short_json FROM company_json; map each through normalizeCompanySummary(short_json)
+     - useCompanyProfile(id) → SELECT company_id, short_json, full_json FROM company_json WHERE company_id = id; map through normalizeCompanyProfile(full_json, short_json)
+     - useCompanySkills(id)  → query the 4 skill tables above, assemble rows, map through normalizeDashboardSkills(...) and the existing topic-ladder shape
+   Reuse the EXISTING normalizers in src/lib/companyData.ts — do not rewrite them. The hooks' returned data must be byte-for-byte compatible with what the pages already render from the seed.
+5. Rewire the pages (CompanyIntelligence, SkillIntelligence) to consume these hooks instead of importing SEED_COMPANIES / skillTopics directly. Keep seedCompanies.ts and skillTopics.ts in the repo as a documented fallback but stop importing them in the live render path.
+6. Add loading + error states to each page using React Query's isLoading / isError (simple skeleton + retry message). Respect the existing QueryClient settings (staleTime 5min, gcTime 10min, retry 1).
+
+HARD CONSTRAINTS (do not violate)
+- Read-only. No inserts, updates, deletes, no RLS changes, no migrations, no edge functions.
+- No auth, no login route, no AuthContext, no ProtectedRoute. App stays fully public.
+- Never display CTC, Stipend, or Selection Ratio anywhere.
+- Do NOT join the 90+ normalized company tables — company data comes ONLY from company_json's short_json / full_json.
+- Do NOT change any colors, fonts, design tokens, routes, or component structure.
+- Do NOT touch the college hero/wordmark logic.
+
+DELIVERABLES
+- @supabase/supabase-js installed.
+- src/lib/supabaseClient.ts
+- src/lib/companyApi.ts (the 3 hooks above)
+- .env (empty placeholders) + .env.example + .gitignore updated
+- CompanyIntelligence and SkillIntelligence rewired to the hooks with loading/error states
+- A short README section: "Phase 2 — Supabase. Paste VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY into .env, then npm install && npm run dev."
+
+After building, verify:
+1. App still loads at / with no code changes needed beyond filling .env.
+2. Company cards populate from company_json.short_json.
+3. Clicking a company loads full detail from company_json.full_json (all 22 sections).
+4. Skill Intelligence builds 12 cards + 10-level roadmaps from the skill tables.
+5. No table other than company_json (companies) and the 4 skill tables is queried.
+6. No auth, no login, no CTC/Stipend/Selection Ratio anywhere.
+7. Filling .env with a valid URL + anon key is the ONLY manual step required.

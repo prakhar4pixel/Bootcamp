@@ -1,5 +1,30 @@
 # Level 3 — Test Automation (metadata-driven pytest)
 
+## Level 2 — Lovable + Supabase portal
+
+This repository now includes a Lovable-compatible React/Vite placement portal in
+`src/`. It renders immediately from the local demo dataset, then switches to
+Supabase when the two environment values below are filled.
+
+```bash
+npm install
+# add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env
+npm run dev
+```
+
+Run `supabase/level2_schema.sql` in the Supabase SQL editor after the supplied
+Level 2 staging/normalisation scripts have loaded the source data. The live
+portal intentionally reads only `company_json` for company views and the four
+skill tables for skill views. It performs no writes, joins the 90+ normalized
+company tables, or uses authentication.
+
+### Lovable follow-up
+
+Import this repository into the existing Lovable project, then paste the
+integration prompt from [prompts/lovable_phase2_supabase.md](prompts/lovable_phase2_supabase.md).
+Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` through Lovable’s project
+environment settings. Never commit the anon key or place it in source code.
+
 **What this level teaches:** how to guarantee the quality of the 163 research
 parameters *automatically*, before any system trusts the data — using a small
 set of generic rules that a rich metadata sheet expands into ~1,500 concrete
